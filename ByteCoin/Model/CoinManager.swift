@@ -8,31 +8,43 @@
 
 import Foundation
 
+protocol CoinManagerDelegate {
+    func didUpdatePrice(_ coinManager: CoinManager, price: String, currency: String)
+    func didFailWithError(error: Error)
+}
+
 struct CoinManager {
     
     let baseURL = "https://rest.coinapi.io/v1/exchangerate/BTC"
     let apiKey = "34ACF331-B972-4036-82BB-EC2BCC35B72D"
+    
+    var delegate: CoinManagerDelegate?
     
     let currencyArray = ["AUD", "BRL","CAD","CNY","EUR","GBP","HKD","IDR","ILS","INR","JPY","MXN","NOK","NZD","PLN","RON","RUB","SEK","SGD","USD","ZAR"]
 
     
     func getCoinPrice(for currency: String) {
            let urlString = "\(baseURL)/\(currency)?apikey=\(apiKey)"
-        print(urlString)
-           performRequest(with: urlString)
+        
+        performRequest(with: urlString, currency: currency)
        }
     
     
-    func performRequest(with urlString: String) {
+    func performRequest(with urlString: String, currency: String) {
         if let url = URL(string: urlString) {
             let session = URLSession(configuration: .default)
             let task = session.dataTask(with: url) { (data, res, error) in
                 if error != nil {
+                    self.delegate?.didFailWithError(error: error!)
                     return
                 }
                 if let safeData = data {
                     if let price = self.parseJSON(safeData) {
-                        print(price)
+                        DispatchQueue.main.async {
+                            let priceStr = String(format: "%.2f", price)
+                            self.delegate?.didUpdatePrice(self, price: priceStr, currency: currency)
+                        }
+                        
                     }
                     
                 }
@@ -49,7 +61,7 @@ struct CoinManager {
             let lastPrice = decodedData.rate
             return lastPrice
         } catch {
-            print(error)
+            delegate?.didFailWithError(error: error)
             return nil
         }
     }
